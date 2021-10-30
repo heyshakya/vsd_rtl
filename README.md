@@ -53,36 +53,30 @@ First step is to import all files including sky130 libraries into the system. Th
 [iverilog](http://iverilog.icarus.com/) is an open source verilog simulator.
 
 ### Labs using iverilog and gtkwave
-Clone [this](https://github.com/kunalg123/sky130RTLDesignAndSynthesisWorkshop.git) repository in your PC.
+Clone [this](https://github.com/kunalg123/sky130RTLDesignAndSynthesisWorkshop.git) repository in your PC.\
 [gtkWave](http://gtkwave.sourceforge.net/) is a wavefor simulator.
 Run and test your RTL Designs already present in the github folder.
 
-<img src = "day1/iverilog.png" width="100%" height="100%">
+<img src = "day1/iverilog.png" width="50%" height="50%">
 
 ### Introduction to Yosys and Logic synthesis
 Synthesizer-Yosys is the tool that helps to convert RTL to netlist. Netlist is the representation of the design in the form of standard cells (in the form of the cells present in the .lib). Design and netlist file should be one and the same. Logic synthesis is the optimiztion stage during the CAD process where the RTL code is being transformed into netlist. The standard library file is a collection of logical modules. It can include basic gates like not, and , or etc and macrocells like flops and muxes. Further many flavors of the same gate might be present like slow, medium, fast as well as multiple input options like 2 inputs , 3 inputs etc.. The synthesizer selects the best cell from the standard library based on the inputs given to it called constraints. Constraints are the designers guide to the synthesis tool on what to optimize the design for, like power, performance or area. For high performance, the tool might choose faster gates which would indeed result in high power and more area. If slower gates are used to minimize power, the performance of the design will be impacted.
 
-<img src = "day1/synthesis.png" width="100%" height="100%">
-
-<img src = "day1/yosys.png" width="100%" height="100%">
-
-<img src = "day1/syn_verification.png" width="100%" height="100%">
+<img src = "day1/synthesis.png" width="50%" height="50%"><img src = "day1/yosys.png" width="50%" height="50%"><img src = "day1/syn_verification.png" width="50%" height="50%">
 
 ### Labs using Yosys and Sky130 PDKs
 Now we will synthesize a pre tested mulitiplexer design in yosys using Sky130 standard cells.
 
-<img src = "day1/terminal.png" width="100%" height="100%">
-
-<img src = "day1/multiplexer.jpg" width="100%" height="100%">
-
-<img src = "day1/netlist.png" width="100%" height="100%">
+<img src = "day1/terminal.png" width="70%" height="70%">
+<img src = "day1/good_mux.png" width="70%" height="70%">
+<img src = "day1/netlist.png" width="70%" height="70%">
 
 ## DAY 2 : Timing libs, hierarchical vs flat synthesis and efficient flop coding styles
 sky130 pdk library is used for standard cell mapping during synthesis. The design gets mapped to standard cell definitions present in "sky130_fd_sc_hd__tt_025C_1v80.lib" library. The necessary files for synthesis are well organized in the [git repository](https://github.com/kunalg123/sky130RTLDesignAndSynthesisWorkshop.git). Apart from using the standard cells from the library, it is neccessary to understand the library, their technology, temperature, and working voltage conditions. Day 2 alsi includes different types of synthesis commands and different flip flop coding styles.
 
 ### Introduction to timing .libs
 The library file used is *_sky130_fd_sc_hd_tt_025C_1v80.lib_*. The nomenclature for library is not random and shows important parameters most importantly the *Process*,*Temperature* and *Voltage*. These parameters are show in the end of the name "tt_025C_1v80".  
-<img src = "day2/libname.png" width="100%" height="100%">
+<img src = "day2/libname.png" width="70%" height="70%">
 
 sky130_fd_sc_hd__tt_025C_1v80.lib file also has the information about the different features of the cells. For each cell it gives the information about the leakage power, delay, area, input capacitance, power associated, timing information and etc..
 As mentioned before, the library contains different flavours of same logic gates. This is done mainly to meet timing constraints.  
@@ -114,11 +108,10 @@ module multiple_module (input a, input b, input c ,output y);
      endmodule 
 ```
 
-Hierarchical Synthesis                                                                       
-<img src = "day2/hierarchy_syn.png" width="50%" height="50%">
-
+Hierarchical Synthesis                                             
+<img src = "day2/hierarchy_syn.png" width="100%" height="100%">
 Flat Synthesis
-<img src = "day2/flat_syn.png" width="50%" height="50%">
+<img src = "day2/flat_syn.png" width="100%" height="100%">
 
 Without flattening heirarchies are preserved, after flattening heirarchies are not preserved
 But when we do flat synthesis we can see entire structure which contains both AND and OR gates.
@@ -135,9 +128,9 @@ In the circuit if we have more combinational circuits then outputs will become m
 Its important to control the initial states of the flops. Since the output of the flops are input to a combinational circuit, if the initial state is unknown, this may result in the combinational logic evaluating to some garbage value. To avoid this we should be able to control the initial values of the flop. For the designer, usually two ways are available. One is to reset the clock, which would set its output to 0 and the other is to set the flop which would set its output to 1. Both can be done asynchronously or synchronous with respect to the clock.
 
 - [1] Asynchronous Reset/Set : Irrespective of clock if reset/set is one then output goes to zero/one.
-<img src = "day2/dff_async_reset_waveform.png" width="50%" height="50%">         <img src = "day2/dff_async_reset.jpg" width="50%" height="50%">
+<img src = "day2/dff_async_reset_waveform.png" width="50%" height="50%"><img src = "day2/dff_async_reset.jpeg" width="50%" height="50%">
 - [2] Synchronous Reset/Set : Synchronous means, the output not set/reset as soon as the reset/set pin is asserted. Instead, it waits for the next clock edge. Synchronous set/reset are always added to the datapath, i.e. they add extra logic to the input of the flop. Even though reset is one until and unless we come across posedge of clock then only output changes.
-<img src = "day2/dff_sync_reset_waveform.png" width="50%" height="50%">         <img src = "day2/dff_sync_reset_model.jpeg" width="50%" height="50%">
+<img src = "day2/dff_sync_reset_waveform.png" width="50%" height="50%"><img src = "day2/dff_sync_reset_model.jpeg" width="50%" height="50%">
 
 Why the senthesizer is generating net list using NAND gate instead of using OR gate?
 The synthesizer is inferring NAND and inverters to get OR gate because the direct cmos implementation of or gate contains stacked PMOS it has many disadvantages so we go for stacked nmos using nand gate
@@ -151,10 +144,12 @@ Two Optimization Problems :
 
 _CASE 1: mult_2.v_ -- Multiply by 2: If a 3 bit number (a) is multiply by 2 then output is {a, 1b'0}.
 It has a 3 bit input and generating a 4 bit output. The relationship for the output is twice the input a. Apparently, the output can be written as the input a itself appended with zeros. Ideally, there is no requirement for Hardware without needing a multiplier.
+
 <img src = "day2/mult2.png" width="50%" height="50%"> 
 
 _CASE 2: mult_8.v_ -- Multiply by 9: If a 3 bit number a is multiply by 9 then output is {a, a}.
 It has a 3 bit input and generating a 6 bit output. The relationship for the output is 9 times the input a. Apparently, the output can be written as the input a, input a itself. Ideally, there is no requirement for Hardware without needing a multiplier.
+
 <img src = "day2/mult8.png" width="50%" height="50%"> 
 
 
