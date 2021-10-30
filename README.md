@@ -152,6 +152,264 @@ It has a 3 bit input and generating a 6 bit output. The relationship for the out
 
 <img src = "day2/mult8.png" width="50%" height="50%"> 
 
+## DAY 3 : Combinational and sequential optmizations
+The synthesis tool comes with many features. One of such features which has a huge impact on design is _optimisation_. The tool does optimisation on the RTL design. Usually these optimisation are done to obtain least hardware and input voltage and omit unwanted components.
+
+### Introduction to optimizations
+The synthesis tool can adopt various techniques to the most optimized design for power, area or performance. There is two broad ways in which tool try to optimize the design i.e. Combinational logic optimizations and Sequential logic optimizations
+
+### Combinational logic optimizations
+Some of the common techniques used for optimizing combinational logic are constant propagation and boolean logic optimization. These are covered in detail below.
+* Constant Propagation
+  In this technique, constant inputs to the logic are propagate to the output which results in a minimized expression implementing the same logic. For example consider the case y=((ab)+c)' when b is tied to 0.
+  <img src = "day3/comb_const_propa.png" width="80%" height="80%"> 
+  We can see that the whole expression can be reduced to just an inverter. The input a does not affect the input as well.
+
+* Boolean logic optimization
+  This is the good old techniques of minimizing large boolean expression using laws of boolean algebra. Consider the below expression for an example.
+  ```
+  assign y=a?(b?c:(c?a:0)):(!c)
+  ```
+  If we write the expanded form, it would look something like below
+  ```
+  y = a(bc + b'(ca + c'0)) + a'c'
+  = abc + ab'c + a'c'
+  = ac(b+b') + a'c'
+  = ac = a'c'
+  = a xnor c
+  ```
+  We can see that the long expression got minimized to a single xnor gate. \
+
+
+```
+module opt_check2 (input a , input b , output y);
+  assign y = a?1:b;
+endmodule
+```
+The optimized graphical realization thus shows 2-input OR gate being implemented. Although OR gate can be realized using NOR, it can lead to having stacked PMOS configuration which is not a design recommendation. So the OR gate is realized using NAND and NOT gates (which has stacked NMOS configuration).
+<img src = "day3/opt_check2.png" width="80%" height="80%">  \
+
+```
+module opt_check3 (input a , input b, input c , output y);
+  assign y = a?(c?b:0):0;
+endmodule
+```
+The optimized graphical realization thus shows 3-input AND gate being implemented.
+<img src = "day3/opt_check3.png" width="80%" height="80%">  \
+
+
+```
+module opt_check4 (input a , input b , input c , output y);
+  assign y = a?(b?(a & c ):c):(!c);
+endmodule
+```
+The optimized graphical realization thus shows A XNOR C gate being implemented.
+<img src = "day3/opt_check4.png" width="80%" height="80%">  \
+
+
+```
+module sub_module1(input a , input b , output y);
+ assign y = a & b;
+endmodule
+
+
+module sub_module2(input a , input b , output y);
+ assign y = a^b;
+endmodule
+
+
+module multiple_module_opt(input a , input b , input c , input d , output y);
+wire n1,n2,n3;
+
+sub_module1 U1 (.a(a) , .b(1'b1) , .y(n1));
+sub_module2 U2 (.a(n1), .b(1'b0) , .y(n2));
+sub_module2 U3 (.a(b), .b(d) , .y(n3));
+
+assign y = c | (b & n1); 
+
+endmodule
+```
+Flatten the module before linking with standard cells. The optimized graphical realization thus shows a 2-input AND into first input of 2-input OR gate being implemented.
+<img src = "day3/multiple_module_opt.png" width="80%" height="80%">  \
+  
+### Sequential logic optimizations
+Some of the common techniques used for optimizing sequential logic are :
+* Sequential constant propagation
+  To understand sequential constant propagation, check out the below verilog code.
+  ```
+  module dff_prop(clk,d,q,rst);
+    input clk,rst,d;
+    output reg q;
+
+    always @(posedge clk or posedge rst)
+      begin
+        if(rst)
+          q<=1'b0;
+        else
+          q<=1'b0;
+      end
+  endmodule
+  ```
+  If you look carefully, we can see that the output q would always be 0, irrespective of clk,d or reset. ie the flop can be optimized away. Lets see what yosys thinks.
+  <img src = "day3/dff_prop_buff.png" width="80%" height="80%"> 
+  We can see that the entire circuit gets optimized to just a single wire. This is sequential constant propagation.
+* Cases when Sequential constant propagation do not apply
+  A constant connected to the input of a flop does not mean that we can always optimize it out. To understand better, see the code below.
+  ```
+  module dff_no_prop(clk,d,q,set);
+    input clk,set,d;
+    output reg q;
+
+    always @(posedge clk or posedge set)
+      begin
+        if(set)
+          q<=1'b1;
+        else
+          q<=1'b0;
+      end
+  endmodule
+  ```
+  We might be compelled to think that we can optimize out the flop. The output seems like following the set pin. ie when set is asserted the output is high and when its is de asserted its low. In other words, q<=set. lets look at the timing diagram once.
+  <img src = "day3/dff_async_set.png" width="80%" height="80%">   \
+  We can clearly see that the flop cannot be optimized out in this case.  \
+  <img src = "day3/dff_prop_1.png" width="80%" height="80%">   \
+  Yosys also thinks the same and is retaining the flop after synthesis. The point is **not all constant input flops can be optimized out**.  \
+
+There are also advanced techniques to obtain a most condensed state machine: 
+- [1] State Optimization where the unused states are being optimized. 
+- [2] Cloning way of logic is done during physical aware synthesis (where if two flops are sitting far off - there might be a large routing delay. To prevent this, a flip flop with huge positive slack can be cloned and the timing can be met). 
+- [3] Re-timing - the combinational logic is partitioned effectively to reduce the delay, thereby increasing the frequency of operation. Hence, the performance of the circuit is improved using this technique.   \
+
+```
+module dff_const1(input clk, input reset, output reg q);
+always @(posedge clk, posedge reset)
+begin
+  if(reset)
+    q <= 1'b0;
+  else
+    q <= 1'b1;
+end
+endmodule
+```
+<img src = "day3/dff_const1.png" width="50%" height="50%"><img src = "day3/dff_const1_model.png" width="50%" height="50%">   \
+
+```
+module dff_const2(input clk, input reset, output reg q);
+always @(posedge clk, posedge reset)
+begin
+  if(reset)
+    q <= 1'b1;
+  else
+    q <= 1'b1;
+end
+endmodule
+```
+<img src = "day3/dff_const2.png" width="50%" height="50%"><img src = "day3/dff_const2_model.png" width="50%" height="50%">   \
+
+```
+module dff_const3(input clk, input reset, output reg q);
+reg q1;
+always @(posedge clk, posedge reset)
+begin
+  if(reset)
+  begin
+    q <= 1'b1;
+    q1 <= 1'b0;
+  end
+  else
+  begin
+    q1 <= 1'b1;
+    q <= q1;
+  end
+end
+endmodule
+```
+<img src = "day3/dff_const3.png" width="50%" height="50%"><img src = "day3/dff_const3_model.png" width="50%" height="50%">   \
+
+```
+module dff_const4(input clk, input reset, output reg q);
+reg q1;
+always @(posedge clk, posedge reset)
+begin
+  if(reset)
+  begin
+    q <= 1'b1;
+    q1 <= 1'b1;
+  end
+  else
+  begin
+    q1 <= 1'b1;
+    q <= q1;
+  end
+end
+endmodule
+```
+<img src = "day3/dff_const4.png" width="50%" height="50%"><img src = "day3/dff_const4_model.png" width="50%" height="50%">   \
+
+```
+module dff_const5(input clk, input reset, output reg q);
+reg q1;
+always @(posedge clk, posedge reset)
+begin
+  if(reset)
+  begin
+    q <= 1'b0;
+    q1 <= 1'b0;
+  end
+  else
+  begin
+    q1 <= 1'b1;
+    q <= q1;
+  end
+end
+endmodule
+```
+<img src = "day3/dff_const5.png" width="50%" height="50%"><img src = "day3/dff_const5_model.png" width="50%" height="50%">   \
+
+### Sequential optimzations for unused outputs
+In some cases all the outputs of the logic are not used, the synthesizer tries to optimize such kind of logic. Consider an example of 3-Bit up-conter.
+```
+module counter_opt (input clk , input reset , output q);
+reg [2:0] count;
+assign q = count[0];
+always @(posedge clk ,posedge reset)
+begin
+  if(reset)
+    count <= 3'b000;
+  else
+    count <= count + 1;
+end
+endmodule
+```
+At first glance, we might think that the design would contain 3 flops after synthesis. After all the counter is a 3 bit one. If we look closely, we find that q<=count[0]. So we just need one flop that toggles count[0] every clock cycle. Also the reset would be connected to the set of an async set flop. Lets see what yosys thinks.
+
+<img src = "day3/counter_opt.png" width="100%" height="100%">
+
+We can clearly see that yosys has inferred just a single flop and the entire circuit is exactly like what we imagined it to be. Long story short, **any logic that does not affect the primary outputs will be optimized out.**
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 -----------------------------------------------------------------------------------------------------------------------------------------------------------
