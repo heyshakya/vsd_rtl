@@ -387,6 +387,162 @@ At first glance, we might think that the design would contain 3 flops after synt
 
 We can clearly see that yosys has inferred just a single flop and the entire circuit is exactly like what we imagined it to be. Long story short, **any logic that does not affect the primary outputs will be optimized out.**
 
+## DAY 4 : GLS, blocking vs non-blocking and Synthesis-Simulation mismatch
+Previously, the functionality of the design was given stimulus inputs and the output was verified to meet the specifications through a test bench module. The RTL design was considered as the DUT (Design Under Test). In Gate Level Simulation (GLS), the Netlist is considered as the Design Under Test.  Netlist is logically same as the RTL code that was converted to Standard Cell Gates. Hence, same test bench will align with the design. 
+
+### GLS, Synthesis-Simulation mismatch and Blocking/Non-blocking statements
+GLS is required to check the correctness of the design after synthesis. After all the netlist is produced by an automated algorithm which can easily go wrong. So its imperative that we compare and test the resultant netlist against the original specification and make sure that its indeed the same. It can also be used to check whether the design meets the timing constraints. For this the gate level models of the standard cell libraries should be delay annotated. \
+
+Situations may arise when the rtl simulation and the gate level simulation yields different results. This clearly indicates that the netlist after synthesis might not match with the requirements in hand. This is called synthesis simulation mismatch. In this section, we look into details some common reason for simulation synthesis mismatches.There may be synthesis and simulation mismatch due to the following reasons: \
+
+1. **Missing signals in sensitivity list** : This issue is mainly due to how the simulator works. An always block is executed only when any of the signals in its sensitivity list changes. So for any logic, all the value that are read by that block should be in the sensitivity list. If some of them is missed, then the block may not be run for changes to that signals. But since the logic written inside the block might itself be correct, the synthesis tool might infer the correct logic. This would then lead to a mismatch between the rtl and gls simulation. \
+
+Simulator works based on ACTIVITY that means if there is change in input then only there is a change in the output
+//**eg-2 by 1 mux**:
+```
+  module mux(
+input i0,input i1
+input sel,
+output reg y
+);
+always @ (sel)
+begin
+   if (sel)
+            y = i1;
+   else 
+            y = i0;
+            
+end
+endmodule
+```
+//
+- **here always block is getting evaluated only when the select is changing even though there is changes in i0 and i1**
+- always block is not sensitive to changes in the i1 this is what we called as **missing element in the sensitivity list**
+- so to overcome that we must use always(*) 
+- therefore the output changes for any of the input changes its code is given as below    \
+
+2. **Blocking Vs Non Blocking Assignments** : Both blocking and nonblocking statements are procedural statements that can only come inside an always( or initial ) block. The main difference between them is that blocking statements are evaluated in the order they are written while all non blocking statements execute concurrently. These difference can cause synthesis simulation mismatches due to the order in which the blocking statements are written. **As a rule of thumb always use blocking statements for combinational logic and non blocking statements for sequential logic**    \
+
+- **eg:shift register using blocking assignments**
+```
+ module code (input clk,input reset,
+input d,
+output reg q);
+always @ (posedge clk,posedge reset)
+begin
+if(reset)
+begin
+        q0 = 1'b0;
+        q = 1'b0;
+end
+else
+        q = q0;
+        q0 = d;
+        
+end
+endmodule  
+```
+- In this case q0 is assigned to q and then d gets assigned to q0.So we get 2 values,so it will have 2 flops in the netlist.
+- **eg:**
+```
+  module code (input clk,input reset,
+input d,
+output reg q);
+always @ (posedge clk,posedge reset)
+begin
+if(reset)
+begin
+        q0 = 1'b0;
+        q = 1'b0;
+end
+else
+        q0 = d;
+        q = q0;
+                
+end
+endmodule 
+```
+
+- In this case q0 is assigned d the q0 gets assigned to q ,So it is as if q is getting the value of d which means it only has 1 flop
+### eg:shift register using non blocking assignments
+```
+module code (input clk,input reset,
+input d,
+output reg q);
+always @ (posedge clk,posedge reset)
+begin
+if(reset)
+begin
+        q0 <= 1'b0;
+        q <= 1'b0;
+end
+else
+        q0 <= d;
+        q <= q0;
+                
+end
+endmodule
+```
+
+- In the non-blocking assignments the order doesnt matter,therefore irrespective of order we will get two flops over here.    \
+
+3. **Non Standard Verilog Coding** : You know it right.
+
+### Labs on GLS and Synthesis-Simulation Mismatch
+CASE 1: ternary_operator.v    \
+```
+module ternary_operator_mux (input i0 , input i1 , input sel , output y);
+  assign y = sel?i1:i0;
+endmodule
+```
+
+<img src = "day4/ternary_op_mux.png" width="50%" height="50%">
+<img src = "day4/ternary_op_mux_model.png" width="50%" height="50%">  
+
+GLS Output    \
+<img src = "day4/ternary_op_mux_gls.png" width="50%" height="50%"> 
+
+CASE 2: bad_mux.v showing mismatch due to missing sensitivity list
+```
+module bad_mux (input i0 , input i1 , input sel , output reg y);
+always @ (sel)
+begin
+  if(sel)
+    y <= i1;
+  else 
+    y <= i0;
+end
+endmodule
+```
+<img src = "day4/bad_mux_model.png" width="50%" height="50%">
+<img src = "day4/bad_mux.png" width="50%" height="50%"> 
+When select is low, it follows i0, and there is no activity happening in select line - so the output remains low. When the select is high, it follows i1, and again there is no activiting in the select line. Thus it acts as a flop, retaining its value.
+
+GLS Output    \
+<img src = "day4/bad_mux_gls.png" width="50%" height="50%">
+Confirms the functionality of 2x1 mux after synthesis where when the select is low, activity of input 0 is reflected on y. Similarly, when the select is hight, activity of input 1 is reflected on y. Hence there is a synthesis simulation mismatch due to missing sensitivity list.  
+
+### Labs on synth-sim mismatch for blocking statement
+CASE 1: blocking_caveat.v showing mismatch due to blocking assignments
+```
+module blocking_caveat (input a , input b , input  c, output reg d); 
+reg x;
+always @ (*)
+begin
+  d = x & c;
+  x = a | b;
+end
+endmodule
+```
+<img src = "day4/blocking_caveat_model.png" width="50%" height="50%">
+<img src = "day4/blocking_caveat.png" width="50%" height="50%">
+
+d = (a+b).c, if the inputs a,b = 0; then a+b = 0. The output d = 0. But, we observe the output d = 1 because it looks at the past value where a+b was 1.
+
+GLS Output    \
+<img src = "day4/blocking_caveat_gls.png" width="50%" height="50%">
+
+The value of output d is 0 after simulation and 1 after synthesis for the same set of input values. Hence there is a synthesis simulation mismatch due to blocking assignments.
 
 
 
