@@ -392,6 +392,7 @@ Previously, the functionality of the design was given stimulus inputs and the ou
 
 ### GLS, Synthesis-Simulation mismatch and Blocking/Non-blocking statements
 GLS is required to check the correctness of the design after synthesis. After all the netlist is produced by an automated algorithm which can easily go wrong. So its imperative that we compare and test the resultant netlist against the original specification and make sure that its indeed the same. It can also be used to check whether the design meets the timing constraints. For this the gate level models of the standard cell libraries should be delay annotated. \
+<img src = "day4/gls_iverilog_1.jpg" width="50%" height="50%">
 
 Situations may arise when the rtl simulation and the gate level simulation yields different results. This clearly indicates that the netlist after synthesis might not match with the requirements in hand. This is called synthesis simulation mismatch. In this section, we look into details some common reason for simulation synthesis mismatches.There may be synthesis and simulation mismatch due to the following reasons: \
 
