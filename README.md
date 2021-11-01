@@ -549,96 +549,304 @@ The value of output d is 0 after simulation and 1 after synthesis for the same s
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-### Tool setup and PDK
-The beauty of open-source is that it is free and available to everyone. In the whole workshop, I have used only two tools and one PDK. Ngspice is an open-source mixed-signal electronic circuit simulator used in circuit design, pre-layout, and post-layout simulation. Magic VLSI Layout Tool is an open-source circuit layout editor, used in circuit layout. Google SkyWater PDK is an open-source process design kit, used in physical design. To install these open-source tools, I would suggest you go to their websites:-
-  1. [Ngspice](http://ngspice.sourceforge.net/)
-  2. [Magic VLSI Layout Tool](http://opencircuitdesign.com/magic/)
-  3. [Google/Skywater 130nm PDK](https://github.com/google/skywater-pdk)
-
-
-
-
-
-
-
-
-
-
+## DAY 5 : Optimization in synthesis
+Manytimes diffrent coding styles leads to different synthesis hardware for the same behavioral codes. Its important to proprly complete the conditional statements in the design to avoid the synthesis simulation mismatches.
+
+### If Case constructs
+The if statement is a conditional statement which uses boolean conditions to determine which blocks of verilog code to execute. If always translates into Multiplexer. It is used for priority Logic and are always used inside always block.The variable should be assigned as a register. \
+**_Inferred latches_** can serve as a 'warning sign' that the logic design might not be implemented as intended. They represent a bad coding style, which happens because of incomplete if statements/crucial statements missing in the design. For ex: if a else statement is missing in the logic code, the hardware has not been informed on the decision, and hence it will _latch_ and will tried retain the value. This type of design should be completely avoided unless intended to meet the design functionality (ex: Counter Design). Combinational circuits cannot have an inferred latch. \
+
+In Case statement, the hardware implementation is a Multiplexer. Similar to IF Statements, Case statements are also used inside always block and the variable should be a register variable. \
+
+**Caveats in CASE Statements**  \
+
+1. Case statements are dangerous when there is an incomplete Case Statement Structure may lead to inferred latches. To avoid inferred latches, code Case with default conditions. When the conditions are not met, the code executes default condition.
+
+```
+reg y
+always @ (*)
+begin
+  case(sel)
+    2'b00:begin
+          ....
+          end
+    2'b01:begin
+          ....
+          end
+          .
+          .
+  default:begin
+         ....
+           end
+  endcase 
+end
+```
+
+2. Partial Assignments in Case statements - not specifying the values. This will also create inferred latches. To avoid inferred latches, assign all the inputs in all the segments of the case statement. 
+
+### Labs on "Incomplete If Case"
+**CASE 1: incomplete if statements**
+```
+module incomp_if (input i0 , input i1 , input i2 , output reg y);
+always @ (*)
+begin
+  if(i0)
+    y <= i1;
+end
+endmodule
+```
+Else case is missing so there will be a D latch.  \
+<img src = "day5/incomp_if.png" width="50%" height="50%"> 
+<img src = "day5/incomp_if_model.png" width="50%" height="50%"> 
+
+When i0 (select line) is low, the output latches to a constant value. Presence of inferred latches due to incomplete if structure. The synthesized design has a D Latch inferred due to incomplete if structure (missing else statement).  \
+
+**CASE 2: incomplete if statements**
+```
+module incomp_if2 (input i0 , input i1 , input i2 , input i3, output reg y);
+always @ (*)
+begin
+  if(i0)
+    y <= i1;
+  else if (i2)
+    y <= i3;
+
+end
+endmodule
+```
+Else case is missing so there will be a latch.
+<img src = "day5/incomp_if2.png" width="50%" height="50%"> 
+<img src = "day5/incomp_if2_model.png" width="50%" height="50%">
+
+When i0 is high, the output follows i1. When i0 is low, the output latches to a constant value (when both i0 and i2 are 0). Presence of inferred latches due to incomplete if structure. The synthesized design has a D Latch inferred due to incomplete if structure (missing else statement).  \
+
+**CASE 3: incomplete case statements**
+```
+module incomp_case (input i0 , input i1 , input i2 , input [1:0] sel, output reg y);
+always @ (*)
+begin
+  case(sel)
+    2'b00 : y = i0;
+    2'b01 : y = i1;
+  endcase
+end
+endmodule
+```                
+There is an incomplete case structure, so a latch is expected.
+
+<img src = "day5/incomp_case.png" width="50%" height="50%"> 
+<img src = "day5/incomp_case_model.png" width="50%" height="50%">
+
+When select signal is 00, the output follows i0 and is i1 when the select value is 01. Since the output is undefined for 10 and 11 values, the ouput latches to the previously available value. The synthesized design has a D Latch inferred due to incomplete case structure (missing output definition for 2 of the select statements).         \
+
+**CASE 4: incomplete case statements with default**
+```
+module comp_case (input i0 , input i1 , input i2 , input [1:0] sel, output reg y);
+always @ (*)
+begin
+  case(sel)
+    2'b00 : y = i0;
+    2'b01 : y = i1;
+    default : y = i2;
+  endcase
+end
+endmodule
+```   
+There is an incomplete case structure but with a default condition, so a latch is not expected.
+
+<img src = "day5/comp_case.png" width="50%" height="50%"> 
+<img src = "day5/comp_case_model.png" width="50%" height="50%">
+
+When select signal is 00, the output follows i0 and is i1 when the select value is 01. Since the output is undefined for 10 and 11 values, the presence of default sets the output to i2 when the select line is 10 or 11. The ouput will not latch and be a proper combinational circuit. The synthesized design has combinational logic without latch due to the presence of default case statement.  \
+
+### Labs on "Incomplete overlapping Case"
+
+**CASE 1: partial case statement**
+```
+module partial_case_assign (input i0 , input i1 , input i2 , input [1:0] sel, output reg y , output reg x);
+always @ (*)
+begin
+  case(sel)
+    2'b00 : begin
+      y = i0;
+      x = i2;
+      end
+    2'b01 : y = i1;
+    default : begin
+               x = i1;
+         y = i2;
+        end
+  endcase
+end
+endmodule
+```  
+The mux for output y will not have a latch, while there will be a latch for mux with output x as one of the conditions is not defined.
+
+<img src = "day5/partial_case_assign.png" width="50%" height="50%"> 
+<img src = "day5/partial_case_assign_model.png" width="50%" height="50%">
+
+The synthesized design has a latch due to partial case statement for output x. Though we write default condition, there can be inferred latches.  \
+
+**CASE 2: overlapping case statement**
+```
+module bad_case (input i0 , input i1, input i2, input i3 , input [1:0] sel, output reg y);
+always @(*)
+begin
+  case(sel)
+    2'b00: y = i0;
+    2'b01: y = i1;
+    2'b10: y = i2;
+    2'b1?: y = i3;
+    //2'b11: y = i3;
+  endcase
+end
+endmodule
+```
+Although the case structure is not complete, there is overlapping of output when the select input is 10 or 11 and ? represented that the bit can be wither 0 or 1. Thus, the simulator may be confused.
+
+<img src = "day5/bad_case.png" width="50%" height="50%"> 
+
+Here, when the select input is 11, the output value is latched to a value.  \
+
+<img src = "day5/bad_case_model.png" width="50%" height="50%"> 
+
+It can be inferred that there is no Latch in the synthesized netlist as the case structure is complete (no presence of inferred latches).  \
+
+<img src = "day5/bad_case_gls.png" width="50%" height="50%">
+
+There is no latch observed in the output. The synthesizer tool does not get confused. Hence there is a Synthesis Simulation Mismatch due to overlapping of legs in the code. Care must be taken to address the legs individually without any overlap (mutually exlusive code)   \
+
+### for loop and for generate
+**For loop** are used inside procedural blocks. They are used to evaluate expressions. They are not for instantiating modules.
+The following code uses for loop to generate a 4X1 mux.
+```
+module mux_generate (input i0 , input i1, input i2 , input i3 , input [1:0] sel  , output reg y);
+  wire [3:0] i_int;
+  assign i_int = {i3,i2,i1,i0};
+  integer k;
+  always @ (*)
+    begin
+    for(k = 0; k < 4; k=k+1) begin
+      if(k == sel)
+       y = i_int[k];
+      end
+    end
+endmodule
+```
+The main advantage of such a coding style is scalability. To convert this code to generate 128X1 mux would just mean, changing the loop condition( and of course the inputs and select also should be scaled accordingly).   \
+**For Generate** loops are used to multiple instantiations of modules. They are not to be used inside a procedural block. An example is shown below.
+```
+module and_8(a,b,y);
+  input [7:0] a,b;
+  output [7:0] y;
+  genvar i;
+  generate
+    for(i=0;i<8;i=i+1)
+      and g(y[i],a[i],b[i]);
+    endgenerate
+    endmodule
+```
+The above will instantiate 8 and gates and make connections accordingly. Much more scalable than writing all the individual instantiations separately.
+
+### Labs on "for loop" and "for generate"
+
+**CASE 1: using generate if statement**
+```
+module mux_generate (input i0 , input i1, input i2 , input i3 , input [1:0] sel  , output reg y);
+wire [3:0] i_int;
+assign i_int = {i3,i2,i1,i0};
+integer k;
+always @ (*)
+begin
+for(k = 0; k < 4; k=k+1) begin
+  if(k == sel)
+    y = i_int[k];
+end
+end
+endmodule
+```
+The structure is complete and expected to behave as a 4x1 multiplexer.
+
+<img src = "day5/mux_generate.png" width="50%" height="50%"> 
+<img src = "day5/mux_generate_model.png" width="50%" height="50%">
+
+It is a 4x1 multiplexer behavior.   \
+
+**CASE 2: demux using case statement.v**
+```
+module demux_case (output o0 , output o1, output o2 , output o3, output o4, output o5, output o6 , output o7 , input [2:0] sel  , input i);
+reg [7:0]y_int;
+assign {o7,o6,o5,o4,o3,o2,o1,o0} = y_int;
+integer k;
+always @ (*)
+begin
+y_int = 8'b0;
+  case(sel)
+    3'b000 : y_int[0] = i;
+    3'b001 : y_int[1] = i;
+    3'b010 : y_int[2] = i;
+    3'b011 : y_int[3] = i;
+    3'b100 : y_int[4] = i;
+    3'b101 : y_int[5] = i;
+    3'b110 : y_int[6] = i;
+    3'b111 : y_int[7] = i;
+  endcase
+end
+endmodule
+```
+All the outputs are initialised to 0, to avoid inferring laches. Depending on the select line, the input is allocated to one of the outputs.   \
+
+<img src = "day5/demux_case.png" width="50%" height="50%"> 
+
+It is a 1x8 multiplexer  \
+
+<img src = "day5/demux_case_model.png" width="50%" height="50%"> 
+
+It can be inferred that there is no Latch in the synthesized netlist as the case structure is complete (no presence of inferred latches).  \
+
+<img src = "day5/demux_case_gls.png" width="50%" height="50%"> 
+
+The observed waveform in simulation and synthesis matches and conforms code functionality. \
+
+**CASE 3: demux using generate if statement.v**
+The experiment of using demux with generate if statement functions same as of demux with case statement. However, the advantage of using generate if statements is the number of lines in the code which almost remains the same even if the input lines in demultiplexer increases.
+```
+module demux_generate (output o0 , output o1, output o2 , output o3, output o4, output o5, output o6 , output o7 , input [2:0] sel  , input i);
+reg [7:0]y_int;
+assign {o7,o6,o5,o4,o3,o2,o1,o0} = y_int;
+integer k;
+always @ (*)
+begin
+y_int = 8'b0;
+for(k = 0; k < 8; k++) begin
+  if(k == sel)
+    y_int[k] = i;
+end
+end
+endmodule
+```
+<img src = "day5/demux_generate.png" width="50%" height="50%"> 
+
+<img src = "day5/demux_generate_model.png" width="50%" height="50%"> 
+
+<img src = "day5/demux_generate_gls.png" width="50%" height="50%"> 
+
+The observed waveform in simulation and synthesis matches and conforms code functionality.  \
+
+**CASE 4: Experiment on Ripple Carry Adder**
+Instantiating the full adder in a loop to replicate the hardware. The output is always n+1 bits if both the inputs ate n bits. Since we are instantiating a full adder present in separate file, there is a need to tell the definition of full adder. It can also be seen that there is no always block used. The variable is genvar instead of integer.   \
+
+<img src = "day5/rca.png" width="50%" height="50%">
+
+<img src = "day5/rca_gls.png" width="50%" height="50%">
+
+The observed waveform in simulation and synthesis matches and conforms code functionality.   \
+
+
+## Acknowledgements
+
+* Kunal Gosh, Co-Founder (VSD Corp. Pvt Ltd)
+* Shon Taware, Teaching Assistant (VSD Corp. Pvt Ltd)
 
 
 
